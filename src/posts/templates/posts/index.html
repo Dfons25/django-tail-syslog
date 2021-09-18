@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Title</title>
+    {% load static %}
+    <script src="{% static 'js/jquery.min.js' %}"></script>
+</head>
+<body>
+{% csrf_token %}
+  <h1>This is our list of posts </h1>
+  {% for post in post_objects %}
+    {{post}}
+  {% endfor %}
+  <button onclick="HackyFunctionPost()">Go POST Ajax</button>
+  <button onclick="HackyFunctionGet()">Go GET Ajax</button>
+  <button onclick="CheckScroll()">CheckScroll</button>
+  <form action="" method="post" id="my_form">
+  {% csrf_token %}
+    <button name="foo" value="upvote">Form Post</button>
+  </form>
+  <div id="my_container"></div>
+
+<style>
+    p {
+        margin-top: 0px;
+        margin-bottom: 0px;
+    }
+</style>
+
+<script>
+$(document).ready(
+$('#my_form').on('submit', function (event) {
+    console.log('Form submitted!');
+    this.submit();
+    return false;
+}))
+
+function getCookie(name) {
+    var cookieValue = null;
+    if (document.cookie && document.cookie != '') {
+        var cookies = document.cookie.split(';');
+        for (var i = 0; i < cookies.length; i++) {
+            var cookie = jQuery.trim(cookies[i]);
+            // Does this cookie string begin with the name we want?
+            if (cookie.substring(0, name.length + 1) == (name + '=')) {
+                cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                break;
+            }
+        }
+    }
+    return cookieValue;
+}
+var csrftoken = getCookie('csrftoken');
+var job_id;
+
+function csrfSafeMethod(method) {
+    // these HTTP methods do not require CSRF protection
+    return (/^(GET|HEAD|OPTIONS|TRACE)$/.test(method));
+}
+$.ajaxSetup({
+    beforeSend: function(xhr, settings) {
+        if (!csrfSafeMethod(settings.type) && !this.crossDomain) {
+            xhr.setRequestHeader("X-CSRFToken", csrftoken);
+        }
+    }
+});
+
+function HackyFunctionGet(){
+$.ajax({
+    type: "GET",
+    contentType: "application/json; charset=utf-8",
+    url: "/trigger",
+    success: function (response) {
+        console.log(response);
+        job_id = response['job_id'];
+    },
+    error: function () {
+        console.log('Invalid post')
+    }
+})
+}
+
+function CheckScroll(){
+    var h = document.documentElement,
+        b = document.body,
+        st = 'scrollTop',
+        sh = 'scrollHeight';
+    return (h[st]||b[st]) / ((h[sh]||b[sh]) - h.clientHeight) * 100;
+}
+
+var bottom_scroll_triggered;
+var refreshIntervalId;
+
+function HackyFunctionPost(){
+    bottom_scroll_triggered = 0;
+    refreshIntervalId = setInterval(HackyFunctionPost_, 1000)
+}
+
+function HackyFunctionPost_(){
+    $.ajax({
+    type: "POST",
+    contentType: "application/json; charset=utf-8",
+    data: JSON.stringify({'job_id': job_id}),
+    url: "/trigger/",
+    success: function (response) {
+        console.log(response)
+        new_html = '';
+        $.each(response['data']['progress'], function (i, v){
+            new_html += '<p>' + v + '</p>';
+        });
+        $('#my_container').html(new_html);
+        console.log($("body").height(), $(window).height());
+        if(bottom_scroll_triggered < 3 && $("body").height() > $(window).height()){
+            bottom_scroll_triggered += 1;
+            window.scrollTo(0,document.body.scrollHeight);
+        }
+        console.log(CheckScroll());
+        if(CheckScroll() > 60){
+            window.scrollTo(0,document.body.scrollHeight);
+        }
+        if(response['data']['pct'] > 100){
+            clearInterval(refreshIntervalId);
+        }
+    },
+        dataType: "json",
+    error: function () {
+        console.log('Invalid post')
+    }
+    }
+    )}
+</script>
+</body>
+</html>
